@@ -92,3 +92,6 @@ build
 
 # Codecov
 *.gcno, *.gcda, *.gcov
+
+# VS code
+.vscode
