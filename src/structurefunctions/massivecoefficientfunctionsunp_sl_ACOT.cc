@@ -388,31 +388,6 @@ namespace apfel
     return 2*TR*(nu*nub*term1 - L*term2 + Lt*term3);
   }
 
-  //_________________________________________________________________________________
-  Cm21gCC_one_mass::Cm21gCC_one_mass(double const& eta, double const& xi):
-    Expression(eta, true),
-    _xi(xi)
-  {
-  }
-
-  double Cm21gCC_one_mass::Regular(double const& x)  const
-  {
-    if (x >= 2)
-      return 0;
-    
-    const double eta = this->_eta;
-    const double z = eta*x;
-    const double z1mz = z*(1-z); 
-    const double l = _xi/(1.+_xi);
-    const double KF2 = 1;
-
-    const double term1 = log((1-z)/z) - 0.5*log(1-l) + 0.5*log(KF2/l);
-    const double term2 = 8*z1mz - 1;
-    const double term3 = -6*(1+2*l)*z1mz + 1./(1-l*z) + 6*l*z*(1-2*l*z)*log((1-l*z)/(1-l)/z);
-
-    return 2 * TR * ( (z*z+(1-z)*(1-z))*term1 + term2 + (1-l)*term3);
-  }
-
   ////////////////////////////////////////////
   /// F2-minus
   //_________________________________________________________________________________

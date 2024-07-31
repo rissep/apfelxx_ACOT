@@ -215,19 +215,6 @@ namespace apfel
     const double _m1;
     const double _m2;
   };
-
-  /**
-   * @brief O(&alpha;<SUB>s</SUB>) gluon coefficient function for F3.
-   * Eq. (2.1) of https://doi.org/10.1007/BF01584394.
-   */
-  class Cm21gCC_one_mass: public Expression
-  {
-  public:
-    Cm21gCC_one_mass(double const& eta, double const& xi);
-    double Regular(double const& x)  const;
-  private:
-    const double _xi;
-  };
   ///@}
 
   /**
