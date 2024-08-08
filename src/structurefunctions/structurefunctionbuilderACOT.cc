@@ -206,8 +206,6 @@ namespace apfel
     report("Initializing StructureFunctionObjects for F2 NC full ACOT up to NLO.\n");
 
 
-    const int num_flavours = Masses.size();
-
     // calc gridding range
     const double mc(Masses[3]),mt(Masses[5]);
     const double Qgridmin = 0.9*Qmin;
@@ -224,11 +222,31 @@ namespace apfel
       }
     }
 
+    // Initalise DGLAP objects needed for scale variations
+    const auto PDFObj = apfel::InitializeDglapObjectsQCD(g, std::vector<double>(actnf, 0.));
+
     // Zero Mass coefficient functions
     const Operator Zero {g, Null{}, IntEps};
     const Operator Id {g,Identity{}, IntEps};
     const Operator O21q_L{g, C21ns{}, IntEps};
     const Operator O21g_L {g, C21g{},  IntEps};
+  // prepare light components
+    std::vector<Operator> L_gluon;
+    std::vector<Operator> L_ps;
+    std::vector<std::map<int,Operator>> L_ns;
+
+    L_gluon.push_back(Zero); 
+    L_gluon.push_back(O21g_L);
+    L_gluon.push_back(Zero);
+
+    L_ps.push_back(Zero); 
+    L_ps.push_back(Zero); 
+    L_ps.push_back(Zero);
+
+    L_ns.push_back({{3,Id}});
+    L_ns.push_back({{3,O21q_L}});
+    L_ns.push_back({{3,Zero}}); 
+
     // Massive coefficient functions
     const auto fO20ns = [=,&g] (double const& sxi) -> Operator{
       const double xi = sxi*sxi;
@@ -268,163 +286,71 @@ namespace apfel
       }
       StructureFunctionObjects FObj;
       FObj.skip = skip;
+      FObj.nf = actnf;
+      FObj.P = PDFObj.at(actnf);
 
       // change charges ->  change the order of up and down quark to match the transformation into the QCD-evolution basis
       std::vector<double> myCh = Ch;
       myCh[0] = Ch[1]; 
       myCh[1] = Ch[0];
 
-      //store all coefficients in a single vector
-      std::vector<std::map<int,Operator>> LO(6);  //order: up, down, strange, charm, bottom, top
-      std::vector<std::map<int,Operator>> NLO(6);
-      std::vector<std::map<int,Operator>> NNLO(6);
-      // insert light components
-      for(int j=1;j<=actnf;j++){
-        LO[j-1].insert({0, Zero}); //Gluon coefficient
-        LO[j-1].insert({1, Id}); // quark coefficient
+      std::vector<std::vector<Operator>> H_gluon(3);
+      std::vector<std::vector<Operator>> H_ps(3);
+      std::vector<std::vector<std::map<int,Operator>>> H_ns(3);
 
-        NLO[j-1].insert({0, O21g_L});
-        NLO[j-1].insert({1, O21q_L});
-
-        NNLO[j-1].insert({0, Zero});
-        NNLO[j-1].insert({1, Zero});
-      }
       // insert heavy quark coefficients
-      for(int j = actnf+1; j<=num_flavours; j++){
+      for(int j = 4; j<=6; j++){
         const double sxi = Q/Masses[j-1];
-        LO[j-1].insert({0,   Zero});
-        LO[j-1].insert({1,   TabO20q_H.Evaluate(sxi)});
+        H_gluon.at(j-4).push_back(Zero); 
+        H_gluon.at(j-4).push_back(Zero+TabO21g_H.Evaluate(sxi));
+        H_gluon.at(j-4).push_back(Zero);
 
-        NLO[j-1].insert({0,  TabO21g_H.Evaluate(sxi)});
-        NLO[j-1].insert({1,  TabO21q_H.Evaluate(sxi)});
+        H_ps.at(j-4).push_back(Zero);
+        H_ps.at(j-4).push_back(Zero);
+        H_ps.at(j-4).push_back(Zero);
 
-        NNLO[j-1].insert({0, Zero});
-        NNLO[j-1].insert({1, Zero});
+        H_ns.at(j-4).push_back({{j-1,Zero+TabO20q_H.Evaluate(sxi)},{j,Zero+TabO20q_H.Evaluate(sxi)}});
+        H_ns.at(j-4).push_back({{j-1,Zero+TabO21q_H.Evaluate(sxi)},{j,Zero+TabO21q_H.Evaluate(sxi)}});
+        H_ns.at(j-4).push_back({{j-1,Zero},{j,Zero}});
       }
 
       //construction of the total structure function by calculating light, charm, bottom and top part individually 
-      //such that we can access them also
-      double fact;
-      //light
-      std::map<int,Operator> C2lLO;
-      std::map<int,Operator> C2lNLO;
-      C2lLO.insert({0,Zero});
-      C2lNLO.insert({0,Zero});
-      for(int j=1; j<=6; j++){
-        C2lLO.insert({2*j-1, Zero});
-        C2lNLO.insert({2*j-1, Zero});
-      }
-      for(int j=1;j<=actnf;j++){
-        C2lLO.at(DISNCBasis_ACOT::OGLUON)  += myCh[j-1]*LO[j-1].at(0);
-        C2lNLO.at(DISNCBasis_ACOT::OGLUON) += myCh[j-1]*NLO[j-1].at(0);
-        C2lLO.at(DISNCBasis_ACOT::OSIGMA)  += myCh[j-1]/6.*LO[j-1].at(1);
-        C2lNLO.at(DISNCBasis_ACOT::OSIGMA) += myCh[j-1]/6.*NLO[j-1].at(1);
-      }
-      C2lLO.at(DISNCBasis_ACOT::OT3)  += 0.5*(myCh[0]*LO[0].at(1)  - myCh[1]*LO[1].at(1) );
-      C2lNLO.at(DISNCBasis_ACOT::OT3) += 0.5*(myCh[0]*NLO[0].at(1) - myCh[1]*NLO[1].at(1));
-      C2lLO.at(DISNCBasis_ACOT::OT8)  += (myCh[0]*LO[0].at(1)  + myCh[1]*LO[1].at(1)  - 2.*myCh[2]*LO[2].at(1) )/6.;
-      C2lNLO.at(DISNCBasis_ACOT::OT8) += (myCh[0]*NLO[0].at(1) + myCh[1]*NLO[1].at(1) - 2.*myCh[2]*NLO[2].at(1))/6.;
-      for(int j=4;j<=6;j++){
-        fact = 1./(double)(j*(j-1));
-        for(int i=1;i<=actnf;i++){
-          C2lLO.at(2*j-1)  += fact*myCh[i-1]*LO[i-1].at(1);
-          C2lNLO.at(2*j-1) += fact*myCh[i-1]*NLO[i-1].at(1);
-        }
-      }
-      FObj.ConvBasis.insert({1,DISNCBasis_ACOT{myCh}});
-      FObj.C0.insert({1,Set<Operator>{FObj.ConvBasis.at(1), C2lLO}});
-      FObj.C1.insert({1,Set<Operator>{FObj.ConvBasis.at(1), C2lNLO}});
+      //such that we can access them as well
+      DISNCBasis_ACOT DISbasis_L(myCh);
+      auto C2_light_coeff = DISbasis_L.get_light_operators(false,L_gluon,L_ns,L_ps);
+      FObj.ConvBasis.insert({1,DISbasis_L});
+      FObj.C0.insert({1,Set<Operator>{FObj.ConvBasis.at(1), C2_light_coeff[0]}});
+      FObj.C1.insert({1,Set<Operator>{FObj.ConvBasis.at(1), C2_light_coeff[1]}});
+      FObj.C2.insert({1,Set<Operator>{FObj.ConvBasis.at(1), C2_light_coeff[2]}});
 
-      //charm
-      
-      std::map<int,Operator> C2cLO;
-      std::map<int,Operator> C2cNLO;
-      C2cLO.insert({0,Zero});
-      C2cNLO.insert({0,Zero});
-      for(int j=1; j<=6; j++){
-        C2cLO.insert({2*j-1, Zero});
-        C2cNLO.insert({2*j-1, Zero});
-      }
-      C2cLO.at(DISNCBasis_ACOT::OGLUON)  += myCh[3] * LO[3].at(0);
-      C2cNLO.at(DISNCBasis_ACOT::OGLUON) += myCh[3] * NLO[3].at(0);
-      C2cLO.at(DISNCBasis_ACOT::OSIGMA)  += myCh[3]/6. * LO[3].at(1);
-      C2cNLO.at(DISNCBasis_ACOT::OSIGMA) += myCh[3]/6. * NLO[3].at(1);
-      //T15 term
-      C2cLO.at(DISNCBasis_ACOT::OT15)  += -0.25*myCh[3]*LO[3].at(1);
-      C2cNLO.at(DISNCBasis_ACOT::OT15) += -0.25*myCh[3]*NLO[3].at(1);
-      //rest of the sum
-      for(int k=5;k<=6;k++){
-        fact = 1./(k*(k-1));
-        C2cLO.at(2*k-1)  += fact*myCh[3]*LO[3].at(1);
-        C2cNLO.at(2*k-1) += fact*myCh[3]*NLO[3].at(1);
-      }
-      FObj.ConvBasis.insert({2,DISNCBasis_ACOT{myCh}});
-      FObj.C0.insert({2,Set<Operator>{FObj.ConvBasis.at(2), C2cLO}});
-      FObj.C1.insert({2,Set<Operator>{FObj.ConvBasis.at(2), C2cNLO}});
+      DISNCBasis_ACOT DISbasis_C(myCh);
+      auto C2_charm_coeff = DISbasis_C.get_charm_operators(false,H_gluon.at(0),H_ns.at(0),H_ps.at(0));
+      FObj.ConvBasis.insert({2,DISbasis_C});
+      FObj.C0.insert({2,Set<Operator>{FObj.ConvBasis.at(2), C2_charm_coeff.at(0)}});
+      FObj.C1.insert({2,Set<Operator>{FObj.ConvBasis.at(2), C2_charm_coeff.at(1)}});
+      FObj.C2.insert({2,Set<Operator>{FObj.ConvBasis.at(2), C2_charm_coeff.at(2)}});
 
-      //bottom
-      std::map<int,Operator> C2bLO;
-      std::map<int,Operator> C2bNLO;
-      C2bLO.insert({0,Zero});
-      C2bNLO.insert({0,Zero});
-      for(int j=1; j<=6; j++){
-        C2bLO.insert({2*j-1, Zero});
-        C2bNLO.insert({2*j-1, Zero});
-      }
-      C2bLO.at(DISNCBasis_ACOT::OGLUON) += myCh[4]*LO[4].at(0);
-      C2bNLO.at(DISNCBasis_ACOT::OGLUON) += myCh[4]*NLO[4].at(0);
-      C2bLO.at(DISNCBasis_ACOT::OSIGMA) += myCh[4]/6.*LO[4].at(1);
-      C2bNLO.at(DISNCBasis_ACOT::OSIGMA) += myCh[4]/6.*NLO[4].at(1);
-      //T24 Term
-      C2bLO.at(DISNCBasis_ACOT::OT24) += -0.2*myCh[4]*LO[4].at(1);
-      C2bNLO.at(DISNCBasis_ACOT::OT24) += -0.2*myCh[4]*NLO[4].at(1);
-      //T35 Term
-      C2bLO.at(DISNCBasis_ACOT::OT35) += myCh[4]/30.*LO[4].at(1);
-      C2bNLO.at(DISNCBasis_ACOT::OT35) += myCh[4]/30.*NLO[4].at(1);
-      FObj.ConvBasis.insert({3,DISNCBasis_ACOT{myCh}});
-      FObj.C0.insert({3,Set<Operator>{FObj.ConvBasis.at(3), C2bLO}});
-      FObj.C1.insert({3,Set<Operator>{FObj.ConvBasis.at(3), C2bNLO}});
+      DISNCBasis_ACOT DISbasis_B(myCh);
+      auto C2_bottom_coeff = DISbasis_B.get_bottom_operators(false,H_gluon.at(1),H_ns.at(1),H_ps.at(1));
+      FObj.ConvBasis.insert({3,DISbasis_B});
+      FObj.C0.insert({3,Set<Operator>{FObj.ConvBasis.at(3), C2_bottom_coeff.at(0)}});
+      FObj.C1.insert({3,Set<Operator>{FObj.ConvBasis.at(3), C2_bottom_coeff.at(1)}});
+      FObj.C2.insert({3,Set<Operator>{FObj.ConvBasis.at(3), C2_bottom_coeff.at(2)}});
 
-      //top
-      std::map<int,Operator> C2tLO;
-      std::map<int,Operator> C2tNLO;
-      C2tLO.insert({0,Zero});
-      C2tNLO.insert({0,Zero});
-      for(int j=1; j<=6; j++){
-        C2tLO.insert({2*j-1, Zero});
-        C2tNLO.insert({2*j-1, Zero});
-      }
-      C2tLO.at(DISNCBasis_ACOT::OGLUON) += myCh[5]*LO[5].at(0);
-      C2tNLO.at(DISNCBasis_ACOT::OGLUON) += myCh[5]*NLO[5].at(0);
-      C2tLO.at(DISNCBasis_ACOT::OSIGMA) += myCh[5]/6.*LO[5].at(1);
-      C2tNLO.at(DISNCBasis_ACOT::OSIGMA) += myCh[5]/6.*NLO[5].at(1);
-      //T35 term
-      C2tLO.at(DISNCBasis_ACOT::OT35) += -myCh[5]/6.*LO[5].at(1);
-      C2tNLO.at(DISNCBasis_ACOT::OT35) += -myCh[5]/6.*NLO[5].at(1);
-      FObj.ConvBasis.insert({4,DISNCBasis_ACOT{myCh}});
-      FObj.C0.insert({4,Set<Operator>{FObj.ConvBasis.at(4), C2tLO}});
-      FObj.C1.insert({4,Set<Operator>{FObj.ConvBasis.at(4), C2tNLO}});
+      DISNCBasis_ACOT DISbasis_T(myCh);
+      auto C2_top_coeff = DISbasis_T.get_top_operators(false,H_gluon.at(2),H_ns.at(2),H_ps.at(2));
+      FObj.ConvBasis.insert({4,DISbasis_T});
+      FObj.C0.insert({4,Set<Operator>{FObj.ConvBasis.at(4), C2_top_coeff.at(0)}});
+      FObj.C1.insert({4,Set<Operator>{FObj.ConvBasis.at(4), C2_top_coeff.at(1)}});
+      FObj.C2.insert({4,Set<Operator>{FObj.ConvBasis.at(4), C2_top_coeff.at(2)}});
 
-      
-      // total structure functions 
-      std::map<int, Operator> C2LOtot;
-      std::map<int, Operator> C2NLOtot;
-      std::map<int, Operator> C2NNLOtot;
-
-      C2LOtot.insert({0,C2lLO.at(0)+C2cLO.at(0)+C2bLO.at(0)+C2tLO.at(0)});
-      C2NLOtot.insert({0,C2lNLO.at(0)+C2cNLO.at(0)+C2bNLO.at(0)+C2tNLO.at(0)});
-      C2NNLOtot.insert({0,Zero});
-      for(int j=1; j<=6; j++){
-        C2LOtot.insert({2*j-1,C2lLO.at(2*j-1)+C2cLO.at(2*j-1)+C2bLO.at(2*j-1)+C2tLO.at(2*j-1)});
-        C2NLOtot.insert({2*j-1,C2lNLO.at(2*j-1)+C2cNLO.at(2*j-1)+C2bNLO.at(2*j-1)+C2tNLO.at(2*j-1)});
-        C2NNLOtot.insert({2*j-1, Zero});
-      }
-      
-      FObj.ConvBasis.insert({0, DISNCBasis_ACOT{myCh}});
-      FObj.C0.insert({0, Set<Operator>{FObj.ConvBasis.at(0), C2LOtot}});
-      FObj.C1.insert({0, Set<Operator>{FObj.ConvBasis.at(0), C2NLOtot}});
-      FObj.C2.insert({0, Set<Operator>{FObj.ConvBasis.at(0), C2NNLOtot}});
-      
+      DISNCBasis_ACOT DISbasis_all(myCh);
+      auto C2_tot_coeff = DISbasis_all.get_tot_operators(false,{C2_light_coeff,C2_charm_coeff,C2_bottom_coeff,C2_top_coeff});
+      FObj.ConvBasis.insert({0, DISbasis_all});
+      FObj.C0.insert({0, Set<Operator>{FObj.ConvBasis.at(0), C2_tot_coeff.at(0)}});
+      FObj.C1.insert({0, Set<Operator>{FObj.ConvBasis.at(0), C2_tot_coeff.at(1)}});
+      FObj.C2.insert({0, Set<Operator>{FObj.ConvBasis.at(0), C2_tot_coeff.at(2)}});
+   
       return FObj;
     };
 

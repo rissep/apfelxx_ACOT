@@ -2,6 +2,7 @@
 #include <iomanip>
 
 #include "apfel/apfelxx.h"
+#include "apfel/structurefunctionbuilderACOT.h"
 #include "LHAPDF/LHAPDF.h"
 
 const std::vector<double> x{
@@ -51,12 +52,12 @@ int main(){
   const auto fEW = [=] (double const& Q) -> std::vector<double> {return apfel::ElectroWeakCharges(Q,false);};
 
   // const auto F2objects = apfel::InitializeF2NCObjectsMassive(g,Thresholds,IntEps,nQ,Qmin,Qmax,intdeg);
-  const auto F2objects = apfel::InitializeF2NCObjectsSACOT(g,Thresholds,IntEps,nQ,Qmin,Qmax,intdeg);
+  const auto F2objects = apfel::InitializeF2NCObjectsACOT(g,Thresholds,IntEps,nQ,Qmin,Qmax,intdeg);
   const std::map<int,apfel::Observable<>> F2 = apfel::BuildStructureFunctions(F2objects,PDFrotated,pto,alphas,fEW);
   const apfel::TabulateObject<apfel::Distribution> F2total {[&] (double const& Q) -> apfel::Distribution{return F2.at(0).Evaluate(Q);},nQ,Qmin,Qmax,intdeg,Thresholds};
 
   std::string path = "/home/users/p_riss01/codes/apfelxx_ACOT/tests/ACOT_tests/APFELxx_results";
-  std::string filename = path + "/NC_F2_SACOT.csv";
+  std::string filename = path + "/NC_F2_ACOT.csv";
 
   std::ofstream file;
   file.open(filename);
