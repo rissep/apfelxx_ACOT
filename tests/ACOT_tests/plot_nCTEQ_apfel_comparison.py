@@ -23,24 +23,23 @@ for key in keys:
   tot = ax[0]
   ratio = ax[1]
   for i,Q2i in enumerate(Q2):
-    val_nCTEQ = nCTEQ[nCTEQ["Q2"]==Q2i][key]
-    val_apfel = apfel[apfel["Q2"]==Q2i][key]
+    val_nCTEQ = nCTEQ[nCTEQ["Q2"]==Q2i][key].to_numpy()
+    val_apfel = apfel[apfel["Q2"]==Q2i][key].to_numpy()
     tot.plot(x,val_nCTEQ,color=colors[i],label='Q={Q:.2f}'.format(Q=np.sqrt(Q2i)))
     tot.plot(x,val_apfel,ls='dashed',color=colors[i])
-    ratio.plot(x,val_nCTEQ/val_apfel,color=colors[i])
+    ratio.plot(x,val_apfel/val_nCTEQ,color=colors[i])
     # print("Q:",np.sqrt(Q2i))
-    # print(F2_nCTEQ/F2_apfel)
+    # print(val_apfel/val_nCTEQ)
 
   tot.legend()
   tot.set_yscale('log')
   #symmetric ylim around 1
-  yabs_max = abs(max(ratio.get_ylim(), key=abs)-1)
-  print('yabs_max:',yabs_max)
+  max_deviation = np.nanmax(abs(np.ma.masked_invalid(apfel[key]/nCTEQ[key])-1))
+  print('max_deviation:',max_deviation)
   #clip plotting range as decimal precision of the output is set to 1e-10
-  yabs_max = max(yabs_max*1.2,1e-9) 
+  yabs_max = max(max_deviation*1.2,1e-9) 
   ratio.set_ylim(ymin=1-yabs_max, ymax=1+yabs_max)
 
-  ratio.axhline(1,color='black',zorder=-1)
 
   for i in range(2):
     ax[i].set_xscale('log')
