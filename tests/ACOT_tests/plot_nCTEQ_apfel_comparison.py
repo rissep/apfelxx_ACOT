@@ -3,8 +3,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 path = "/home/users/p_riss01/codes/apfelxx_ACOT/tests/ACOT_tests"
-file_nCTEQ = path + "/nCTEQ_results/NC_F2_SACOT.csv"
-file_apfel = path + "/APFELxx_results/NC_F2_SACOT.csv"
+file_nCTEQ = path + "/nCTEQ_results/NC_F2_ACOT.csv"
+file_apfel = path + "/APFELxx_results/NC_F2_ACOT.csv"
 
 colors = ["orange","red","royalblue","darkgreen"]
 
@@ -23,6 +23,7 @@ for key in keys:
   tot = ax[0]
   ratio = ax[1]
   for i,Q2i in enumerate(Q2):
+    # if Q2i <= 1.5**2: continue
     val_nCTEQ = nCTEQ[nCTEQ["Q2"]==Q2i][key].to_numpy()
     val_apfel = apfel[apfel["Q2"]==Q2i][key].to_numpy()
     tot.plot(x,val_nCTEQ,color=colors[i],label='Q={Q:.2f}'.format(Q=np.sqrt(Q2i)))
